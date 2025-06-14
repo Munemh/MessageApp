@@ -10,6 +10,7 @@ const { swaggerUi, swaggerSpec } = require('./swagger');
 
 const websocketDocRoute = require('./routes/websocket-doc');
 const messageRoute = require('./routes/message');
+const userRoutes = require('./routes/users');
 const app = express();
 // app.use(cors());
 app.use(cors({
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use('/api', authRoutes);
 app.use('/api', websocketDocRoute);
 app.use('/api/messages', messageRoute);
+app.use('/api/users', userRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // setupSwagger(app);

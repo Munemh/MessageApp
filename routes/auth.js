@@ -105,19 +105,27 @@ const User = require('../models/User');
 
 const router = express.Router();
 
-// Generate access and refresh tokens
+
 function generateTokens(user) {
-  const accessToken = jwt.sign({ id: user._id, username: user.username }, process.env.JWT_SECRET, {
+  const payload = {
+    id: user._id,
+    username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+  };
+
+  const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
   });
 
-  const refreshToken = jwt.sign({ id: user._id, username: user.username }, process.env.JWT_REFRESH_SECRET, {
+  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   });
 
   return { accessToken, refreshToken };
 }
-
 // Register
 router.post('/register', async (req, res) => {
   const { firstName, lastName, username, email, phone, address, password } = req.body;
