@@ -11,6 +11,10 @@ const { swaggerUi, swaggerSpec } = require('./swagger');
 const websocketDocRoute = require('./routes/websocket-doc');
 const messageRoute = require('./routes/message');
 const userRoutes = require('./routes/users');
+const fileRoutes = require('./routes/fileRoute');
+// const { handleMulterError } = require('./middleware/uploadMiddleware');
+
+
 const app = express();
 // app.use(cors());
 app.use(cors({
@@ -24,7 +28,10 @@ app.use('/api', websocketDocRoute);
 app.use('/api/messages', messageRoute);
 app.use('/api/users', userRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api/files', fileRoutes);
 
+// Multer error handling middleware (must come after file routes)
+// app.use(handleMulterError);
 // setupSwagger(app);
 mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 

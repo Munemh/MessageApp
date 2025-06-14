@@ -40,84 +40,192 @@ function setupWebSocket(server) {
       });
     }
 
-    ws.on('message', async (raw) => {
-      console.log(`📨 Raw message from ${user.username}:`, raw);
+    // ws.on('message', async (raw) => {
+    //   console.log(`📨 Raw message from ${user.username}:`, raw);
 
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch (err) {
-        console.error('❌ Invalid JSON message');
-        return;
-      }
+    //   let data;
+    //   try {
+    //     data = JSON.parse(raw);
+    //   } catch (err) {
+    //     console.error('❌ Invalid JSON message');
+    //     return;
+    //   }
 
-      const { message, toUserId } = data;
-      if (!message) return;
+    //   const { message, toUserId } = data;
+    //   if (!message) return;
 
-      const senderId = user.id;
+    //   const senderId = user.id;
 
-      // 1-to-1 Message
-      if (toUserId) {
-        console.log(`📩 Private message from ${user.username} to userId: ${toUserId}`);
+    //   // 1-to-1 Message
+    //   if (toUserId) {
+    //     console.log(`📩 Private message from ${user.username} to userId: ${toUserId}`);
 
-        const receiver = await User.findById(toUserId);
-        if (!receiver) {
-          console.warn(`⚠️ Receiver not found: ${toUserId}`);
-          return;
-        }
+    //     const receiver = await User.findById(toUserId);
+    //     if (!receiver) {
+    //       console.warn(`⚠️ Receiver not found: ${toUserId}`);
+    //       return;
+    //     }
 
-        const newMsg = await Message.create({
-          sender: senderId,
-          receiver: toUserId,
-          content: message
-        });
+    //     const newMsg = await Message.create({
+    //       sender: senderId,
+    //       receiver: toUserId,
+    //       content: message
+    //     });
 
-        wss.clients.forEach((client) => {
-          if (
-            client.readyState === WebSocket.OPEN &&
-            (client.user.id === toUserId || client.user.id === senderId)
-          ) {
-            client.send(JSON.stringify({
-              from: user.username,
-              to: receiver.username,
-              content: message,
-              timestamp: newMsg.timestamp,
-              type: 'private'
-            }));
-          }
-        });
+    //     wss.clients.forEach((client) => {
+    //       if (
+    //         client.readyState === WebSocket.OPEN &&
+    //         (client.user.id === toUserId || client.user.id === senderId)
+    //       ) {
+    //         client.send(JSON.stringify({
+    //           from: user.username,
+    //           to: receiver.username,
+    //           content: message,
+    //           timestamp: newMsg.timestamp,
+    //           type: 'private'
+    //         }));
+    //       }
+    //     });
 
-        console.log(`✅ Message sent to ${receiver.username}`);
-      }
+    //     console.log(`✅ Message sent to ${receiver.username}`);
+    //   }
 
-      // Group Message
-      else if (room) {
-        console.log(`💬 Group message in room ${room} by ${user.username}: ${message}`);
+    //   // Group Message
+    //   else if (room) {
+    //     console.log(`💬 Group message in room ${room} by ${user.username}: ${message}`);
 
-        const newMsg = await Message.create({
-          sender: senderId,
-          room,
-          content: message
-        });
+    //     const newMsg = await Message.create({
+    //       sender: senderId,
+    //       room,
+    //       content: message
+    //     });
 
-        wss.clients.forEach((client) => {
-          if (
-            client.readyState === WebSocket.OPEN &&
-            client.room === room
-          ) {
-            client.send(JSON.stringify({
-              from: user.username,
-              content: message,
-              timestamp: newMsg.timestamp,
-              type: 'group'
-            }));
-          }
-        });
+    //     wss.clients.forEach((client) => {
+    //       if (
+    //         client.readyState === WebSocket.OPEN &&
+    //         client.room === room
+    //       ) {
+    //         client.send(JSON.stringify({
+    //           from: user.username,
+    //           content: message,
+    //           timestamp: newMsg.timestamp,
+    //           type: 'group'
+    //         }));
+    //       }
+    //     });
 
-        console.log(`✅ Group message broadcasted in room: ${room}`);
+    //     console.log(`✅ Group message broadcasted in room: ${room}`);
+    //   }
+    // });
+
+
+    
+ws.on('message', async (raw) => {
+  console.log(`📨 Raw message from ${user.username}:`, raw);
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    console.error('❌ Invalid JSON message');
+    return;
+  }
+
+  const { message, toUserId, fileAttachment, messageType = 'text' } = data;
+  
+  // Validate that we have either message content or file attachment
+  if (!message && !fileAttachment) return;
+
+  const senderId = user.id;
+
+  // 1-to-1 Message (including file messages)
+  if (toUserId) {
+    console.log(`📩 Private message from ${user.username} to userId: ${toUserId}`);
+
+    const receiver = await User.findById(toUserId);
+    if (!receiver) {
+      console.warn(`⚠️ Receiver not found: ${toUserId}`);
+      return;
+    }
+
+    // Create message with file attachment support
+    const messageData = {
+      sender: senderId,
+      receiver: toUserId,
+      content: message || '', // Can be empty for file-only messages
+      messageType: messageType,
+      timestamp: new Date()
+    };
+
+    // Add file attachment if present
+    if (fileAttachment) {
+      messageData.fileAttachment = fileAttachment;
+    }
+
+    const newMsg = await Message.create(messageData);
+
+    // Broadcast to both sender and receiver
+    wss.clients.forEach((client) => {
+      if (
+        client.readyState === WebSocket.OPEN &&
+        (client.user.id === toUserId || client.user.id === senderId)
+      ) {
+        const broadcastMessage = {
+          from: user.username,
+          to: receiver.username,
+          content: message || '',
+          messageType: messageType,
+          fileAttachment: fileAttachment,
+          timestamp: newMsg.timestamp,
+          type: 'private'
+        };
+
+        client.send(JSON.stringify(broadcastMessage));
       }
     });
 
+    console.log(`✅ Message sent to ${receiver.username}`);
+  }
+
+  // Group Message (you can add similar file support for groups)
+  else if (room) {
+    console.log(`💬 Group message in room ${room} by ${user.username}`);
+
+    const messageData = {
+      sender: senderId,
+      room,
+      content: message || '',
+      messageType: messageType,
+      timestamp: new Date()
+    };
+
+    if (fileAttachment) {
+      messageData.fileAttachment = fileAttachment;
+    }
+
+    const newMsg = await Message.create(messageData);
+
+    wss.clients.forEach((client) => {
+      if (
+        client.readyState === WebSocket.OPEN &&
+        client.room === room
+      ) {
+        const broadcastMessage = {
+          from: user.username,
+          content: message || '',
+          messageType: messageType,
+          fileAttachment: fileAttachment,
+          timestamp: newMsg.timestamp,
+          type: 'group'
+        };
+
+        client.send(JSON.stringify(broadcastMessage));
+      }
+    });
+
+    console.log(`✅ Group message broadcasted in room: ${room}`);
+  }
+});
     ws.on('close', () => {
       console.log(`🔌 WebSocket closed: ${user?.username}`);
     });
@@ -125,3 +233,10 @@ function setupWebSocket(server) {
 }
 
 module.exports = setupWebSocket;
+
+
+
+
+
+
+
